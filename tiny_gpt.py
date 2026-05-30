@@ -5,6 +5,18 @@ from torch.utils.data import Dataset, DataLoader
 from pathlib import Path
 import urllib.request
 
+try:
+    from tqdm import tqdm
+except ImportError:
+    # tqdm이 없어도 set_postfix 메서드를 호출할 수 있도록 더미 클래스를 정의합니다.
+    class tqdm:
+        def __init__(self, iterable, **kwargs):
+            self.iterable = iterable
+        def __iter__(self):
+            return iter(self.iterable)
+        def set_postfix(self, **kwargs):
+            pass
+
 # =====================================================================
 # [1] 데이터 파이프라인: 텍스트 다운로드 및 토큰화 데이터셋 구축
 # =====================================================================
@@ -176,7 +188,8 @@ def train_one_epoch(model, loader, optimizer, device, max_steps=None):
     """ 1 에포크 단위의 순전파-역전파 루프 가중치 최적화 함수 """
     model.train()
     total_loss, total_count = 0.0, 0
-    for step, (xb, yb) in enumerate(loader):
+    pbar = tqdm(enumerate(loader), total=max_steps if max_steps else len(loader), desc="Training")
+    for step, (xb, yb) in pbar:
         xb, yb = xb.to(device), yb.to(device)
         
         logits = model(xb)
@@ -188,6 +201,7 @@ def train_one_epoch(model, loader, optimizer, device, max_steps=None):
         
         total_loss += loss.item() * xb.size(0)
         total_count += xb.size(0)
+        pbar.set_postfix(loss=loss.item())
         if max_steps is not None and step + 1 >= max_steps:
             break
     return total_loss / total_count
